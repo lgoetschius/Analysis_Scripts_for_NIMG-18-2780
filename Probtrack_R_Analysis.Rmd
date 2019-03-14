@@ -1,0 +1,546 @@
+---
+title: "R_Probtrack_Data"
+author: "Leigh Gayle Goetschius"
+date: "06/27/2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup}
+
+#knitr::opts_knit$set(root.dir = normalizePath('/Users/leighgayle/Box Sync/ProbtrackX_Project/'))
+
+```
+
+
+```{r setup and load packages, include=FALSE}
+library(foreign); # For reading in the data.
+library(car); # For checking regression diagnostics
+library(gvlma); # Global test of assumptions.
+library(ggplot2);
+library(moments);
+library(MASS)
+```
+
+# No Scalp Data
+
+```{r import no scalp data}
+
+ns_data = read.csv('/Users/leighgayle/Box Sync/ProbtrackX_Project/ProbtrackData_NoScalpSubList_wDTI_2.csv', sep = ',', header = TRUE)
+
+ns_data = read.csv('/Users/leighgayle/Box Sync/ProbtrackX_Project/ProbtrackData_NoScalpSubList_wDTI_10302018.csv', sep = ',', header = TRUE)
+```
+
+# Run some diagnostics on the no scalp data.
+
+```{r regression diagnostics no scalp}
+
+# Model to check multicollinearity on.
+fit_R = lm(Threat_Act_Ramy_NoScalp ~ RAmySeed_BA25Target + RAmySeed_BA24Target + RAmySeed_BA47Target + RAmySeed_BA11Target + RAmySeed_BA32Target + RAmySeed_BA10Target + RAmySeed_BA9Target, data=ns_data)
+
+fit_L = lm(Threat_Act_Lamy_NoScalp ~ LAmySeed_BA25Target + LAmySeed_BA24Target + LAmySeed_BA47Target + LAmySeed_BA11Target + LAmySeed_BA32Target + LAmySeed_BA10Target + LAmySeed_BA9Target, data=ns_data)
+
+# Check for multi-collinearity.
+vif(fit_R)
+sqrt(vif(fit_R)) > 2 # If this statement is true, it's a problem. 
+
+vif(fit_L)
+sqrt(vif(fit_L)) > 2 # If this statement is true, it's a problem. 
+
+# Perform a global validation of linear model assumptions as well as separate evaluations of skewness, kurtosis, and heteroscedasticity.
+gvmodel = gvlma(fit_R)
+summary(gvmodel)
+
+gvmodel2 = gvlma(fit_L)
+summary(gvmodel2)
+
+# Fun fact, we don't have to worry about kurtosis violation for the regression models. 
+
+# Individual kurtosis values are a different story for our t-test analysis. 
+kurtosis(ns_data$RAmySeed_BA25Target)
+kurtosis(ns_data$RAmySeed_BA24Target) # Large kurtosis value
+kurtosis(ns_data$RAmySeed_BA47Target)
+kurtosis(ns_data$RAmySeed_BA11Target)
+kurtosis(ns_data$RAmySeed_BA32Target) # Large kurtosis value
+kurtosis(ns_data$RAmySeed_BA10Target)
+kurtosis(ns_data$RAmySeed_BA9Target) # Semi-large kurtosis value
+
+kurtosis(ns_data$LAmySeed_BA25Target)
+kurtosis(ns_data$LAmySeed_BA24Target) # Large kurtosis value
+kurtosis(ns_data$LAmySeed_BA47Target)
+kurtosis(ns_data$LAmySeed_BA11Target)
+kurtosis(ns_data$LAmySeed_BA32Target) # Large kurtosis value
+kurtosis(ns_data$LAmySeed_BA10Target)
+kurtosis(ns_data$LAmySeed_BA9Target) # Semi-large kurtosis value
+
+skewness(ns_data$LAmySeed_BA25Target)
+skewness(ns_data$LAmySeed_BA24Target) 
+skewness(ns_data$LAmySeed_BA47Target)
+skewness(ns_data$LAmySeed_BA11Target)
+skewness(ns_data$LAmySeed_BA32Target) 
+skewness(ns_data$LAmySeed_BA10Target)
+skewness(ns_data$LAmySeed_BA9Target)
+
+
+# Check for non-independence of errors.
+durbinWatsonTest(fit_R)
+durbinWatsonTest(fit_L)
+
+# Check for influential observations.
+avPlots(fit_R)
+avPlots(fit_L)
+
+# Cook's D --> identify D values > 4/(n-k-1)
+cutoff = 4/((nrow(ns_data) - length(fit_R$coefficients)-1))
+plot(fit_R, which=4, cook.levels=cutoff)
+plot(fit_L, which=4, cook.levels=cutoff)
+
+```
+
+# Now let's remove those outliers. 
+```{r remove no scalp outliers}
+
+#clean.ns_data = ns_data[-c(12,75,82,89,99,146), ]
+clean.ns_data = ns_data[-c(12,75,82,89,99,145), ]
+
+```
+
+# Mean/SD of the different probability of connectivity.
+```{r no scalp descriptives}
+
+# Mean 
+means = sapply(clean.ns_data, mean, na.rm = TRUE)
+
+means
+
+# SD
+sd = sapply(clean.ns_data, sd, na.rm = TRUE)
+
+sd
+
+```
+
+```{r are the connections different from zero}
+
+# Right hemisphere
+t.test(clean.ns_data$RAmySeed_BA9Target)
+t.test(clean.ns_data$RAmySeed_BA10Target)
+t.test(clean.ns_data$RAmySeed_BA11Target)
+t.test(clean.ns_data$RAmySeed_BA24Target)
+t.test(clean.ns_data$RAmySeed_BA25Target)
+t.test(clean.ns_data$RAmySeed_BA32Target)
+t.test(clean.ns_data$RAmySeed_BA46Target)
+t.test(clean.ns_data$RAmySeed_BA47Target)
+
+# Left hemisphere
+t.test(clean.ns_data$LAmySeed_BA9Target)
+t.test(clean.ns_data$LAmySeed_BA10Target)
+t.test(clean.ns_data$LAmySeed_BA11Target)
+t.test(clean.ns_data$LAmySeed_BA24Target)
+t.test(clean.ns_data$LAmySeed_BA25Target)
+t.test(clean.ns_data$LAmySeed_BA32Target)
+t.test(clean.ns_data$LAmySeed_BA46Target)
+t.test(clean.ns_data$LAmySeed_BA47Target)
+
+```
+
+
+# T-tests between the different BA and the control tract (BA 23)
+```{r comp_control_tract}
+
+# Right hemisphere.
+t.test(clean.ns_data$RAmySeed_BA46Target, clean.ns_data$RAmySeed_BA25Target)
+t.test(clean.ns_data$RAmySeed_BA46Target, clean.ns_data$RAmySeed_BA24Target) # BA 24 may violate kurtosis assumptions
+t.test(clean.ns_data$RAmySeed_BA46Target, clean.ns_data$RAmySeed_BA32Target) # BA 32 may violate kurtosis assumptions
+t.test(clean.ns_data$RAmySeed_BA46Target, clean.ns_data$RAmySeed_BA10Target)
+t.test(clean.ns_data$RAmySeed_BA46Target, clean.ns_data$RAmySeed_BA9Target)
+t.test(clean.ns_data$RAmySeed_BA46Target, clean.ns_data$RAmySeed_BA11Target)
+t.test(clean.ns_data$RAmySeed_BA46Target, clean.ns_data$RAmySeed_BA47Target)
+
+# Left hemisphere.
+t.test(clean.ns_data$LAmySeed_BA46Target, clean.ns_data$LAmySeed_BA25Target)
+t.test(clean.ns_data$LAmySeed_BA46Target, clean.ns_data$LAmySeed_BA24Target) # BA 24 may violate kurtosis assumptions
+t.test(clean.ns_data$LAmySeed_BA46Target, clean.ns_data$LAmySeed_BA32Target) # BA 32 may violate kurtosis assumptions
+t.test(clean.ns_data$LAmySeed_BA46Target, clean.ns_data$LAmySeed_BA10Target)
+t.test(clean.ns_data$LAmySeed_BA46Target, clean.ns_data$LAmySeed_BA9Target)
+t.test(clean.ns_data$LAmySeed_BA46Target, clean.ns_data$LAmySeed_BA11Target)
+t.test(clean.ns_data$LAmySeed_BA46Target, clean.ns_data$LAmySeed_BA47Target)
+
+# Comparing control tracts
+t.test(clean.ns_data$LAmySeed_BA46Target, clean.ns_data$RAmySeed_BA46Target)
+
+```
+
+```{r test against BA 23}
+
+# Right hemisphere.
+t.test(clean.ns_data$RAmySeed_BA23Target, clean.ns_data$RAmySeed_BA25Target)
+t.test(clean.ns_data$RAmySeed_BA23Target, clean.ns_data$RAmySeed_BA24Target) # BA 24 may violate kurtosis assumptions
+t.test(clean.ns_data$RAmySeed_BA23Target, clean.ns_data$RAmySeed_BA32Target) # BA 32 may violate kurtosis assumptions
+t.test(clean.ns_data$RAmySeed_BA23Target, clean.ns_data$RAmySeed_BA10Target)
+t.test(clean.ns_data$RAmySeed_BA23Target, clean.ns_data$RAmySeed_BA9Target)
+t.test(clean.ns_data$RAmySeed_BA23Target, clean.ns_data$RAmySeed_BA11Target)
+t.test(clean.ns_data$RAmySeed_BA23Target, clean.ns_data$RAmySeed_BA47Target)
+
+# Left hemisphere.
+t.test(clean.ns_data$LAmySeed_BA23Target, clean.ns_data$LAmySeed_BA25Target)
+t.test(clean.ns_data$LAmySeed_BA23Target, clean.ns_data$LAmySeed_BA24Target) # BA 24 may violate kurtosis assumptions
+t.test(clean.ns_data$LAmySeed_BA23Target, clean.ns_data$LAmySeed_BA32Target) # BA 32 may violate kurtosis assumptions
+t.test(clean.ns_data$LAmySeed_BA23Target, clean.ns_data$LAmySeed_BA10Target)
+t.test(clean.ns_data$LAmySeed_BA23Target, clean.ns_data$LAmySeed_BA9Target)
+t.test(clean.ns_data$LAmySeed_BA23Target, clean.ns_data$LAmySeed_BA11Target)
+t.test(clean.ns_data$LAmySeed_BA23Target, clean.ns_data$LAmySeed_BA47Target)
+
+```
+
+```{r against each other}
+
+# Right BA 25 versus everyone
+t.test(clean.ns_data$RAmySeed_BA25Target,clean.ns_data$RAmySeed_BA10Target)
+t.test(clean.ns_data$RAmySeed_BA25Target,clean.ns_data$RAmySeed_BA11Target)
+t.test(clean.ns_data$RAmySeed_BA25Target,clean.ns_data$RAmySeed_BA9Target)
+t.test(clean.ns_data$RAmySeed_BA25Target,clean.ns_data$RAmySeed_BA32Target)
+t.test(clean.ns_data$RAmySeed_BA25Target,clean.ns_data$RAmySeed_BA24Target)
+t.test(clean.ns_data$RAmySeed_BA25Target,clean.ns_data$RAmySeed_BA47Target) #ns
+
+# Left BA 25 versus everyone
+t.test(clean.ns_data$LAmySeed_BA25Target,clean.ns_data$LAmySeed_BA10Target)
+t.test(clean.ns_data$LAmySeed_BA25Target,clean.ns_data$LAmySeed_BA11Target)
+t.test(clean.ns_data$LAmySeed_BA25Target,clean.ns_data$LAmySeed_BA9Target)
+t.test(clean.ns_data$LAmySeed_BA25Target,clean.ns_data$LAmySeed_BA32Target)
+t.test(clean.ns_data$LAmySeed_BA25Target,clean.ns_data$LAmySeed_BA24Target)
+t.test(clean.ns_data$LAmySeed_BA25Target,clean.ns_data$LAmySeed_BA47Target)
+
+# Right BA 47 versus everyone
+t.test(clean.ns_data$RAmySeed_BA47Target,clean.ns_data$RAmySeed_BA10Target)
+t.test(clean.ns_data$RAmySeed_BA47Target,clean.ns_data$RAmySeed_BA11Target)
+t.test(clean.ns_data$RAmySeed_BA47Target,clean.ns_data$RAmySeed_BA9Target)
+t.test(clean.ns_data$RAmySeed_BA47Target,clean.ns_data$RAmySeed_BA32Target)
+t.test(clean.ns_data$RAmySeed_BA47Target,clean.ns_data$RAmySeed_BA24Target)
+t.test(clean.ns_data$RAmySeed_BA47Target,clean.ns_data$RAmySeed_BA25Target) #ns
+
+# Left BA 47 versus everyone
+t.test(clean.ns_data$LAmySeed_BA47Target,clean.ns_data$LAmySeed_BA10Target)
+t.test(clean.ns_data$LAmySeed_BA47Target,clean.ns_data$LAmySeed_BA11Target) #ns
+t.test(clean.ns_data$LAmySeed_BA47Target,clean.ns_data$LAmySeed_BA9Target)
+t.test(clean.ns_data$LAmySeed_BA47Target,clean.ns_data$LAmySeed_BA32Target)
+t.test(clean.ns_data$LAmySeed_BA47Target,clean.ns_data$LAmySeed_BA24Target)
+t.test(clean.ns_data$LAmySeed_BA47Target,clean.ns_data$LAmySeed_BA25Target) # 25 higher than 47
+
+# Right 24 versus everyone --> BA24 is less than all of the statisically significant t.tests
+t.test(clean.ns_data$RAmySeed_BA24Target,clean.ns_data$RAmySeed_BA10Target) 
+t.test(clean.ns_data$RAmySeed_BA24Target,clean.ns_data$RAmySeed_BA11Target) 
+t.test(clean.ns_data$RAmySeed_BA24Target,clean.ns_data$RAmySeed_BA9Target) #ns
+t.test(clean.ns_data$RAmySeed_BA24Target,clean.ns_data$RAmySeed_BA32Target) #ns
+t.test(clean.ns_data$RAmySeed_BA24Target,clean.ns_data$RAmySeed_BA47Target)
+t.test(clean.ns_data$RAmySeed_BA24Target,clean.ns_data$RAmySeed_BA25Target)
+
+# Left 24 versus everyone --> except where marked, BA24 is less than the other regions.
+t.test(clean.ns_data$LAmySeed_BA24Target,clean.ns_data$LAmySeed_BA10Target)
+t.test(clean.ns_data$LAmySeed_BA24Target,clean.ns_data$LAmySeed_BA11Target)
+t.test(clean.ns_data$LAmySeed_BA24Target,clean.ns_data$LAmySeed_BA9Target)  # 24 higher than 9 here.
+t.test(clean.ns_data$LAmySeed_BA24Target,clean.ns_data$LAmySeed_BA32Target) #p=.03
+t.test(clean.ns_data$LAmySeed_BA24Target,clean.ns_data$LAmySeed_BA47Target)
+t.test(clean.ns_data$LAmySeed_BA24Target,clean.ns_data$LAmySeed_BA25Target)
+
+# Right 10 versus everyone --> all tests are significant here
+t.test(clean.ns_data$RAmySeed_BA10Target,clean.ns_data$RAmySeed_BA24Target) 
+t.test(clean.ns_data$RAmySeed_BA10Target,clean.ns_data$RAmySeed_BA11Target) # 11 is stronger
+t.test(clean.ns_data$RAmySeed_BA10Target,clean.ns_data$RAmySeed_BA9Target) 
+t.test(clean.ns_data$RAmySeed_BA10Target,clean.ns_data$RAmySeed_BA32Target) 
+t.test(clean.ns_data$RAmySeed_BA10Target,clean.ns_data$RAmySeed_BA47Target) # 47 is stronger
+t.test(clean.ns_data$RAmySeed_BA10Target,clean.ns_data$RAmySeed_BA25Target) # 25 is stronger
+
+# Left 10 versus everyone
+t.test(clean.ns_data$LAmySeed_BA10Target,clean.ns_data$LAmySeed_BA24Target)
+t.test(clean.ns_data$LAmySeed_BA10Target,clean.ns_data$LAmySeed_BA11Target) # 11 is stronger
+t.test(clean.ns_data$LAmySeed_BA10Target,clean.ns_data$LAmySeed_BA9Target)  
+t.test(clean.ns_data$LAmySeed_BA10Target,clean.ns_data$LAmySeed_BA32Target) 
+t.test(clean.ns_data$LAmySeed_BA10Target,clean.ns_data$LAmySeed_BA47Target) # 47 is stronger
+t.test(clean.ns_data$LAmySeed_BA10Target,clean.ns_data$LAmySeed_BA25Target) # 25 is stronger
+
+# Right 11 versus everyone -
+t.test(clean.ns_data$RAmySeed_BA11Target,clean.ns_data$RAmySeed_BA24Target) 
+t.test(clean.ns_data$RAmySeed_BA11Target,clean.ns_data$RAmySeed_BA10Target) 
+t.test(clean.ns_data$RAmySeed_BA11Target,clean.ns_data$RAmySeed_BA9Target) 
+t.test(clean.ns_data$RAmySeed_BA11Target,clean.ns_data$RAmySeed_BA32Target) 
+t.test(clean.ns_data$RAmySeed_BA11Target,clean.ns_data$RAmySeed_BA47Target) # 47 is stronger
+t.test(clean.ns_data$RAmySeed_BA11Target,clean.ns_data$RAmySeed_BA25Target) # 25 is stronger
+
+# Left 11 versus everyone
+t.test(clean.ns_data$LAmySeed_BA11Target,clean.ns_data$LAmySeed_BA24Target)
+t.test(clean.ns_data$LAmySeed_BA11Target,clean.ns_data$LAmySeed_BA10Target) 
+t.test(clean.ns_data$LAmySeed_BA11Target,clean.ns_data$LAmySeed_BA9Target)  
+t.test(clean.ns_data$LAmySeed_BA11Target,clean.ns_data$LAmySeed_BA32Target) 
+t.test(clean.ns_data$LAmySeed_BA11Target,clean.ns_data$LAmySeed_BA47Target) # ns
+t.test(clean.ns_data$LAmySeed_BA11Target,clean.ns_data$LAmySeed_BA25Target) # 25 is stronger
+
+# Right 32 versus everyone 
+t.test(clean.ns_data$RAmySeed_BA32Target,clean.ns_data$RAmySeed_BA24Target) # ns
+t.test(clean.ns_data$RAmySeed_BA32Target,clean.ns_data$RAmySeed_BA10Target) # 10 is stronger
+t.test(clean.ns_data$RAmySeed_BA32Target,clean.ns_data$RAmySeed_BA9Target) # ns
+t.test(clean.ns_data$RAmySeed_BA32Target,clean.ns_data$RAmySeed_BA11Target) # 11 is stronger
+t.test(clean.ns_data$RAmySeed_BA32Target,clean.ns_data$RAmySeed_BA47Target) # 47 is stronger
+t.test(clean.ns_data$RAmySeed_BA32Target,clean.ns_data$RAmySeed_BA25Target) # 25 is stronger
+
+# Left 32 versus everyone
+t.test(clean.ns_data$LAmySeed_BA32Target,clean.ns_data$LAmySeed_BA24Target) # p=.03 with 24 stronger
+t.test(clean.ns_data$LAmySeed_BA32Target,clean.ns_data$LAmySeed_BA10Target) # 10 is stronger
+t.test(clean.ns_data$LAmySeed_BA32Target,clean.ns_data$LAmySeed_BA9Target)  #ns
+t.test(clean.ns_data$LAmySeed_BA32Target,clean.ns_data$LAmySeed_BA11Target) # 11 is stronger
+t.test(clean.ns_data$LAmySeed_BA32Target,clean.ns_data$LAmySeed_BA47Target) # 47 is stronger
+t.test(clean.ns_data$LAmySeed_BA32Target,clean.ns_data$LAmySeed_BA25Target) # 25 is stronger
+
+# Right 9 versus everyone 
+t.test(clean.ns_data$RAmySeed_BA9Target,clean.ns_data$RAmySeed_BA24Target) # ns
+t.test(clean.ns_data$RAmySeed_BA9Target,clean.ns_data$RAmySeed_BA10Target) # 10 is stronger
+t.test(clean.ns_data$RAmySeed_BA9Target,clean.ns_data$RAmySeed_BA11Target) # 11 is stronger
+t.test(clean.ns_data$RAmySeed_BA9Target,clean.ns_data$RAmySeed_BA32Target) # ns
+t.test(clean.ns_data$RAmySeed_BA9Target,clean.ns_data$RAmySeed_BA47Target) # 47 is stronger
+t.test(clean.ns_data$RAmySeed_BA9Target,clean.ns_data$RAmySeed_BA25Target) # 25 is stronger
+
+# Left 9 versus everyone 
+t.test(clean.ns_data$LAmySeed_BA9Target,clean.ns_data$LAmySeed_BA24Target) # 24 is stronger
+t.test(clean.ns_data$LAmySeed_BA9Target,clean.ns_data$LAmySeed_BA10Target) # 10 is stronger
+t.test(clean.ns_data$LAmySeed_BA9Target,clean.ns_data$LAmySeed_BA11Target) # 11 is stronger  
+t.test(clean.ns_data$LAmySeed_BA9Target,clean.ns_data$LAmySeed_BA32Target) # ns
+t.test(clean.ns_data$LAmySeed_BA9Target,clean.ns_data$LAmySeed_BA47Target) # 47 is stronger
+t.test(clean.ns_data$LAmySeed_BA9Target,clean.ns_data$LAmySeed_BA25Target) # 25 is stronger
+
+```
+
+```{r some other fun tests}
+
+range(clean.ns_data$RAmySeed_BA24Target)
+range(clean.ns_data$RAmySeed_BA32Target)
+range(clean.ns_data$RAmySeed_BA25Target)
+range(clean.ns_data$RAmySeed_BA47Target)
+range(clean.ns_data$RAmySeed_BA9Target)
+range(clean.ns_data$RAmySeed_BA10Target)
+range(clean.ns_data$RAmySeed_BA11Target)
+
+range(clean.ns_data$RAmySeed_BA46Target) # control tract
+
+range(clean.ns_data$LAmySeed_BA24Target)
+range(clean.ns_data$LAmySeed_BA32Target)
+range(clean.ns_data$LAmySeed_BA25Target)
+range(clean.ns_data$LAmySeed_BA47Target)
+range(clean.ns_data$LAmySeed_BA9Target)
+range(clean.ns_data$LAmySeed_BA10Target)
+range(clean.ns_data$LAmySeed_BA11Target)
+
+range(clean.ns_data$LAmySeed_BA46Target) # control tract
+
+
+
+```
+
+## Some fun plots.
+
+```{r some fun plots}
+
+#r_vals = read.csv('/Users/leighgayle/Box Sync/Final_619_Docs/predicted_r_vals_final_120117.csv', sep = ',', header = TRUE)
+r_vals = read.csv('/Users/leighgayle/Box Sync/Final_619_Docs/predicted_r_vals_final_103018.csv', sep = ',', header = TRUE)
+
+#l_vals = read.csv('/Users/leighgayle/Box Sync/Final_619_Docs/predicted_l_vals_final_120117.csv', sep = ',', header = TRUE)
+l_vals = read.csv('/Users/leighgayle/Box Sync/Final_619_Docs/predicted_l_vals_final_103018.csv', sep = ',', header = TRUE)
+
+right_cor = cor.test(r_vals$Observed,r_vals$Predicted)
+right_cor
+
+left_cor = cor.test(l_vals$observed,l_vals$Predicted)
+left_cor
+
+# Set Font family.
+op <- par(family = "serif")
+
+plot(r_vals$Observed, r_vals$Predicted, xlim = c(-1, 2.5), ylim = c(0,1.2), xlab = 'Observed R.Amy Activation', ylab = '\n Predicted R.Amy Activation', pch=16, family = 'serif',ps=4, font.lab=1, cex.lab=1.3, cex.main=2, bty = 'no')
+legend(x='bottomright',legend=expression('R'^2* ' = 0.140'), bty='n', text.font=2.5, cex = 1.3)
+abline(lm(r_vals$Predicted ~ r_vals$Observed))
+
+plot(l_vals$observed, l_vals$Predicted, xlim = c(-1, 2.5), ylim = c(0,1.2), xlab = 'Observed L.Amy Activation', ylab = '\n Predicted L.Amy Activation', pch=16, family = 'serif',ps=4, font.lab=1, cex.lab=1.3, cex.main=2, bty = 'no')
+legend(x='bottomright',legend=expression('R'^2* ' = .141'), bty='n', text.font=2, cex=1.3)
+abline(lm(l_vals$Predicted ~ l_vals$observed))
+
+```
+
+```{r Plot BA47 and RAmy}
+
+plot(clean.ns_data$RAmySeed_BA47Target,clean.ns_data$Threat_Act_Ramy_NoScalp, xlim=c(0.0,0.4), ylim=c(-1,3), xlab = 'Maximum Likelihood of Connectivity between RAmy and R BA 47', ylab = 'RAmy Activation Contrast Value', bty='no', pch=16, ps=4, font.lab=1, cex.lab=1.3, cex.main=2, family='serif')
+
+abline(lm(clean.ns_data$Threat_Act_Ramy_NoScalp ~ clean.ns_data$RAmySeed_BA47Target))
+
+```
+
+```{r Plot RAmy and BA10}
+
+plot(clean.ns_data$RAmySeed_BA10Target,clean.ns_data$Threat_Act_Ramy_NoScalp, xlim=c(0.0,0.23), ylim=c(-1,3), xlab = 'Maximum Likelihood of Connectivity between RAmy and R BA 10', ylab = 'RAmy Activation Contrast Value', bty='no', pch=16, ps=4, font.lab=1, cex.lab=1.3, cex.main=2.2, family='serif')
+
+abline(lm(clean.ns_data$Threat_Act_Ramy_NoScalp ~ clean.ns_data$RAmySeed_BA10Target))
+
+```
+
+
+```{r Plot LAmy and BA10}
+
+plot(clean.ns_data$LAmySeed_BA10Target,clean.ns_data$Threat_Act_Lamy_NoScalp, xlim=c(0.0,0.10), ylim=c(-.5,2.5), xlab = 'Maximum Likelihood of Connectivity between LAmy and L BA 10', ylab = 'LAmy Activation Contrast Value', bty='no', pch=16, ps=4, font.lab=1, cex.lab=1.3, cex.main=2, family='serif')
+
+abline(lm(clean.ns_data$Threat_Act_Lamy_NoScalp ~ clean.ns_data$LAmySeed_BA10Target))
+
+```
+
+```{r Plot LAmy and BA11}
+
+plot(clean.ns_data$LAmySeed_BA11Target,clean.ns_data$Threat_Act_Lamy_NoScalp, xlim=c(0.0,0.10), ylim=c(-.5,2.5), xlab = 'Maximum Likelihood of Connectivity between LAmy and L BA 11', ylab = 'LAmy Activation Contrast Value', bty='no', pch=16, ps=4, font.lab=1, cex.lab=1.3, cex.main=2, family='serif')
+
+abline(lm(clean.ns_data$Threat_Act_Lamy_NoScalp ~ clean.ns_data$LAmySeed_BA11Target))
+
+```
+
+### Make plot comparing Amygdala Connectivity per hemisphere
+```{r}
+par(family = 'serif', font.lab=2, font.axis=2, ps=10)
+boxplot(clean.ns_data$LAmySeed_BA25Target, clean.ns_data$LAmySeed_BA47Target, clean.ns_data$LAmySeed_BA11Target, clean.ns_data$LAmySeed_BA10Target, clean.ns_data$LAmySeed_BA24Target, clean.ns_data$LAmySeed_BA9Target, clean.ns_data$LAmySeed_BA32Target, names=c('BA25', 'BA47', 'BA11', 'BA10', 'BA24', 'BA9', 'BA32'), ylim=c(0,.25), ylab='Amygdala Connectivity (Max. Likelihood)', font.lab=2, cex.lab=1.6, cex.axis=1.5, family= 'serif', frame.plot=FALSE, outline=FALSE)
+
+par(family = 'serif', font.lab=2, font.axis=2, ps=10)
+boxplot(clean.ns_data$RAmySeed_BA25Target, clean.ns_data$RAmySeed_BA47Target, clean.ns_data$RAmySeed_BA11Target, clean.ns_data$RAmySeed_BA10Target, clean.ns_data$RAmySeed_BA24Target, clean.ns_data$RAmySeed_BA9Target, clean.ns_data$RAmySeed_BA32Target, names=c('BA25', 'BA47', 'BA11', 'BA10', 'BA24', 'BA9', 'BA32'), ylim=c(0,.4), ylab='Amygdala Connectivity (Max. Likelihood)', font.lab=2, cex.lab=1.6, cex.axis = 1.5, family= 'serif', frame.plot=FALSE, outline=FALSE)
+
+```
+
+#### I want to see if any of my tractography variables are associated with framewise displacement. I feel like that will be a motion start. 
+
+```{r}
+FDdata = read.csv('/Users/leighgayle/Box Sync/ProbtrackX_Project/FD_IncludedData.csv')
+```
+
+```{r}
+
+# Right hemisphere
+cor.test(FDdata$RelativeFramewiseDisplacement_mm, clean.ns_data$RAmySeed_BA47Target)
+cor.test(FDdata$RelativeFramewiseDisplacement_mm, clean.ns_data$RAmySeed_BA25Target)
+cor.test(FDdata$RelativeFramewiseDisplacement_mm, clean.ns_data$RAmySeed_BA24Target)
+cor.test(FDdata$RelativeFramewiseDisplacement_mm, clean.ns_data$RAmySeed_BA32Target)
+cor.test(FDdata$RelativeFramewiseDisplacement_mm, clean.ns_data$RAmySeed_BA10Target)
+cor.test(FDdata$RelativeFramewiseDisplacement_mm, clean.ns_data$RAmySeed_BA11Target)
+cor.test(FDdata$RelativeFramewiseDisplacement_mm, clean.ns_data$RAmySeed_BA9Target)
+
+# Left hemisphere
+cor.test(FDdata$RelativeFramewiseDisplacement_mm, clean.ns_data$LAmySeed_BA47Target)
+cor.test(FDdata$RelativeFramewiseDisplacement_mm, clean.ns_data$LAmySeed_BA25Target)
+cor.test(FDdata$RelativeFramewiseDisplacement_mm, clean.ns_data$LAmySeed_BA24Target)
+cor.test(FDdata$RelativeFramewiseDisplacement_mm, clean.ns_data$LAmySeed_BA32Target)
+cor.test(FDdata$RelativeFramewiseDisplacement_mm, clean.ns_data$LAmySeed_BA10Target)
+cor.test(FDdata$RelativeFramewiseDisplacement_mm, clean.ns_data$LAmySeed_BA11Target)
+cor.test(FDdata$RelativeFramewiseDisplacement_mm, clean.ns_data$LAmySeed_BA9Target) # This is associated (wouldn't survive multiple comparisons test, but I'm not sure if you do those when you're doing a motion check)
+
+```
+
+# Additional analyses for the R&R in NeuroImage - begun 1.8.2019
+
+```{r}
+# import income data
+income_final_4_10_18 <- read_sav("/Volumes/lsa-research02/csmonk/csmonk-lab/Data/Fragile_Families/Data Cleaning Protocol/Parent Demo/Cleaned Data/income_final_4_10_18.sav")
+
+# create ID variable to match on. 
+income_final_4_10_18$id_short = income_final_4_10_18$id
+ns_data$id_short = substr(ns_data$ID, 0, 5)
+
+Income = income_final_4_10_18[ c("id_short", "yr_income")]
+clean.ns_data = merge(clean.ns_data, Income, by="id_short")
+
+puberty = read.csv('/Users/leighgayle/Box Sync/FF_Demographics/FullSample_Puberty.csv')
+puberty = puberty[ c("id_short","puberty_score","used_parent")]
+
+clean.ns_data = merge(clean.ns_data, puberty, by="id_short")
+
+internalizing = read.csv('/Users/leighgayle/Box Sync/ThreatDep_Probtrack_Amygdala/Internalizing_OneFactorScore_FullDataSet_092618.csv')
+internalizing = internalizing[ c("id_short","Internalizing")]
+
+clean.ns_data = merge(clean.ns_data, internalizing, by = "id_short")
+
+amygdala_data = read.csv('/Users/leighgayle/Box Sync/Final_619_Docs/NeuroImage_Submission/R&R/extracted_amygdala_happy_sad.csv')
+clean.ns_data = merge(clean.ns_data, amygdala_data, by = "id_short")
+
+clean.ns_data = read.csv('/Users/leighgayle/Box Sync/Final_619_Docs/NeuroImage_Submission/R&R/clean_updated_datafile.csv')
+
+MFQ = read.csv('/Users/leighgayle/Box Sync/FF_Demographics/MFQ_C_c071718.csv')
+MFQ = MFQ[ c("id_short","MFQ_C_Sum")]
+clean.ns_data = merge(clean.ns_data, MFQ, by = "id_short")
+
+SCARED = read.csv('/Users/leighgayle/Box Sync/FF_Demographics/SCARED_C_c071718.csv')
+SCARED = SCARED[ c("id_short","SCARED_C_Sum")]
+clean.ns_data = merge(clean.ns_data, SCARED, by = "id_short")
+
+```
+
+```{r}
+
+# Mark the missing values as NA
+clean.ns_data$yr_income[clean.ns_data$yr_income==-99] = NA
+clean.ns_data$yr_income[clean.ns_data$yr_income==88] = NA
+clean.ns_data$yr_income[clean.ns_data$yr_income==77] = NA
+
+
+```
+
+#### See how income relates to the white matter metrics
+```{r}
+
+library(Hmisc);
+
+R_vars = c("yr_income","puberty_score","Internalizing","RAmySeed_BA25Target", "RAmySeed_BA24Target","RAmySeed_BA32Target", "RAmySeed_BA47Target", "RAmySeed_BA9Target", "RAmySeed_BA10Target", "RAmySeed_BA11Target")
+
+R_vars = c("yr_income","puberty_score","MFQ_C_Sum","SCARED_C_Sum","RAmySeed_BA25Target", "RAmySeed_BA24Target","RAmySeed_BA32Target", "RAmySeed_BA47Target", "RAmySeed_BA9Target", "RAmySeed_BA10Target", "RAmySeed_BA11Target")
+
+R_data = clean.ns_data[R_vars]
+
+rcorr(as.matrix(R_data))
+
+```
+
+```{r}
+L_vars = c("yr_income", "puberty_score","Internalizing","LAmySeed_BA25Target", "LAmySeed_BA24Target","LAmySeed_BA32Target", "LAmySeed_BA47Target", "LAmySeed_BA9Target", "LAmySeed_BA10Target", "LAmySeed_BA11Target")
+
+L_vars = c("yr_income", "puberty_score","MFQ_C_Sum","SCARED_C_Sum","LAmySeed_BA25Target", "LAmySeed_BA24Target","LAmySeed_BA32Target", "LAmySeed_BA47Target", "LAmySeed_BA9Target", "LAmySeed_BA10Target", "LAmySeed_BA11Target")
+
+L_data = clean.ns_data[L_vars]
+
+rcorr(as.matrix(L_data))
+```
+
+```{r}
+t.test(clean.ns_data$RAmySeed_BA9Target ~ clean.ns_data$Gender) # marginal
+t.test(clean.ns_data$RAmySeed_BA10Target ~ clean.ns_data$Gender)
+t.test(clean.ns_data$RAmySeed_BA11Target ~ clean.ns_data$Gender)
+t.test(clean.ns_data$RAmySeed_BA24Target ~ clean.ns_data$Gender)
+t.test(clean.ns_data$RAmySeed_BA25Target ~ clean.ns_data$Gender) # significant
+t.test(clean.ns_data$RAmySeed_BA32Target ~ clean.ns_data$Gender) # marginal
+t.test(clean.ns_data$RAmySeed_BA47Target ~ clean.ns_data$Gender)
+```
+
+```{r}
+t.test(clean.ns_data$LAmySeed_BA9Target ~ clean.ns_data$Gender) 
+t.test(clean.ns_data$LAmySeed_BA10Target ~ clean.ns_data$Gender)
+t.test(clean.ns_data$LAmySeed_BA11Target ~ clean.ns_data$Gender)
+t.test(clean.ns_data$LAmySeed_BA24Target ~ clean.ns_data$Gender) # significant
+t.test(clean.ns_data$LAmySeed_BA25Target ~ clean.ns_data$Gender) 
+t.test(clean.ns_data$LAmySeed_BA32Target ~ clean.ns_data$Gender) 
+t.test(clean.ns_data$LAmySeed_BA47Target ~ clean.ns_data$Gender)
+```
+
+```{r}
+summary(lm(happyGTbaseline_left ~ LAmySeed_BA9Target + LAmySeed_BA10Target + LAmySeed_BA11Target + LAmySeed_BA24Target + LAmySeed_BA25Target + LAmySeed_BA32Target + LAmySeed_BA47Target, data = clean.ns_data))
+
+summary(lm(sadGTbaseline_left ~ LAmySeed_BA9Target + LAmySeed_BA10Target + LAmySeed_BA11Target + LAmySeed_BA24Target + LAmySeed_BA25Target + LAmySeed_BA32Target + LAmySeed_BA47Target, data = clean.ns_data))
+
+summary(lm(happyGTbaseline_right ~ RAmySeed_BA9Target + RAmySeed_BA10Target + RAmySeed_BA11Target + RAmySeed_BA24Target + RAmySeed_BA25Target + RAmySeed_BA32Target + RAmySeed_BA47Target, data = clean.ns_data))
+
+summary(lm(sadGTbaseline_right ~ RAmySeed_BA9Target + RAmySeed_BA10Target + RAmySeed_BA11Target + RAmySeed_BA24Target + RAmySeed_BA25Target + RAmySeed_BA32Target + RAmySeed_BA47Target, data = clean.ns_data))
+
+summary(lm(allfacesGTbaseline_left ~ LAmySeed_BA9Target + LAmySeed_BA10Target + LAmySeed_BA11Target + LAmySeed_BA24Target + LAmySeed_BA25Target + LAmySeed_BA32Target + LAmySeed_BA47Target, data = clean.ns_data))
+
+summary(lm(allfacesGTbaseline_right ~ RAmySeed_BA9Target + RAmySeed_BA10Target + RAmySeed_BA11Target + RAmySeed_BA24Target + RAmySeed_BA25Target + RAmySeed_BA32Target + RAmySeed_BA47Target, data = clean.ns_data))
+
+```
+
